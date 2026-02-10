@@ -42,6 +42,13 @@ extern "C"{
 
 //*********************************************************
 //
+// Global variables
+//
+//*********************************************************
+std::vector<std::string> searchPath{"/bin"};
+
+//*********************************************************
+//
 // Function Prototypes
 //
 //*********************************************************
@@ -99,6 +106,15 @@ void handleCd(char **toks) {
     }
 }
 
+void handlePath(char **toks) {
+    searchPath.clear();
+    int argc = getLength(toks);
+    int i;
+    for(i = 1; i < argc; i++) {
+       searchPath.push_back(toks[i]);
+    }
+}
+
 void processCmd(char **toks) {
     int ii = 0;
 
@@ -109,6 +125,12 @@ void processCmd(char **toks) {
         }
         else if(!strcmp(toks[0], "cd")) {
             handleCd(toks);
+        }
+        else if(!strcmp(toks[0], "path")) {
+            handlePath(toks);
+        }
+        else {
+
         }
     }
 }
