@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
+#include <vector>
+#include <sys/wait.h>
 
 #define STR_EXIT "exit"
 #define PROMPT "hfsh26> "
@@ -99,6 +101,15 @@ char** getToksArguments(char* input) {
     return toks;
 }
 
+void handleExit(char **toks) {
+    if (getLength(toks) != 1) {
+        handleError();
+        return;
+    }
+
+    exit(0);
+}
+
 void handleCd(char **toks) {
     int argc = getLength(toks);
     if (argc != 2 || chdir(toks[1]) == -1) {
@@ -115,13 +126,42 @@ void handlePath(char **toks) {
     }
 }
 
+void handleJob(char **toks) {
+    int argc = getLength(toks);
+    int i;
+    std::string executable;
+
+    for (i = 0; i < searchPath.size(); i++) {
+        executable = searchPath[i] + "/" + toks[0];
+        if (access(executable.c_str(), X_OK) == 0) {
+            pid_t pid = fork();
+            if (pid < 0) {
+                handleError();
+                return;
+            }
+            else if (pid == 0) {
+                execv(executable.c_str(), toks);
+
+                handleError();
+                exit(1);
+            }
+            else {
+                wait(NULL);
+            }
+
+            return;
+        }
+    }
+    handleError();
+}
+
 void processCmd(char **toks) {
     int ii = 0;
 
     if(toks[0] != NULL){
         
         if(!strcmp(toks[0], STR_EXIT)) {
-            exit(0);
+            handleExit(toks);
         }
         else if(!strcmp(toks[0], "cd")) {
             handleCd(toks);
@@ -130,7 +170,7 @@ void processCmd(char **toks) {
             handlePath(toks);
         }
         else {
-
+            handleJob(toks);
         }
     }
 }
