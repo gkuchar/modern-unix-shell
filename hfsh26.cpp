@@ -103,10 +103,6 @@ void processCmd(char **toks) {
     int ii = 0;
 
     if(toks[0] != NULL){
-        // /* simple loop to echo all arguments */
-        // for(ii=0; toks[ii] != NULL; ii++){
-        //     printf( "Argument %d: %s\n", ii, toks[ii] );
-        // }
         
         if(!strcmp(toks[0], STR_EXIT)) {
             exit(0);
