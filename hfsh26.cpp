@@ -21,6 +21,7 @@
 #include <fstream>
 #include <vector>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define STR_EXIT "exit"
 #define PROMPT "hfsh26> "
@@ -126,27 +127,65 @@ void handlePath(char **toks) {
     }
 }
 
+int checkRedir(char **toks) {
+    int i;
+    int rval = -1;
+    int argc = getLength(toks);
+
+    for (i = 1; i < argc; i++) {
+        if(!strcmp(toks[i], ">")) {
+            rval = i;
+            break;
+        }
+    }
+
+    if (rval != -1 && (toks[rval + 1] == NULL || toks[rval + 2] != NULL)) {
+        rval = -2;
+    }
+
+    return rval + 1;
+}
+
 void handleJob(char **toks) {
     int argc = getLength(toks);
     int i;
     std::string executable;
+    int redir = checkRedir(toks); // returns output file index in toks if valid, -1 if invalid, and 0 if no ">" symbol in toks
+
+    if (redir == -1) { // redirection error
+        handleError();
+        return;
+    }
 
     for (i = 0; i < searchPath.size(); i++) {
         executable = searchPath[i] + "/" + toks[0];
         if (access(executable.c_str(), X_OK) == 0) {
-            pid_t pid = fork();
-            if (pid < 0) {
+            pid_t pid = fork(); // create child process for valid executable
+            if (pid < 0) { // fork() error handling
                 handleError();
                 return;
             }
             else if (pid == 0) {
+                // check for valid redirection
+                if (redir > 0) {
+                    int fd = open(toks[redir], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (fd < 0) {  // open() error handling
+                        exit(1);
+                    }
+                    dup2(fd, STDOUT_FILENO);
+                    dup2(fd, STDERR_FILENO); 
+                    close(fd);              
+
+                    toks[redir - 1] = NULL;
+                }
+
+                // child: execute executable
                 execv(executable.c_str(), toks);
 
-                handleError();
                 exit(1);
             }
             else {
-                wait(NULL);
+                wait(NULL); // parent: wait for child
             }
 
             return;
