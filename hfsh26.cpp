@@ -69,7 +69,7 @@ char** getToksArguments();
 // Helper/Auxiliary Functions
 //
 //*********************************************************
-int getLength(char **arr) {
+int getLength(char **arr) { // return length of NULL terminating array
     if (arr == NULL) return 0;
     
     int len = 0;
@@ -79,7 +79,7 @@ int getLength(char **arr) {
     return len;
 }
 
-void handleError() {
+void handleError() { // standard error message and procedure
     char error_message[30] = "An error has occurred\n";
     write(STDERR_FILENO, error_message, strlen(error_message)); 
 }
@@ -103,7 +103,7 @@ char** getToksArguments(char* input) {
 }
 
 void handleExit(char **toks) {
-    if (getLength(toks) != 1) {
+    if (getLength(toks) != 1) { // error if exit is invoked with any arguments
         handleError();
         return;
     }
@@ -113,21 +113,21 @@ void handleExit(char **toks) {
 
 void handleCd(char **toks) {
     int argc = getLength(toks);
-    if (argc != 2 || chdir(toks[1]) == -1) {
+    if (argc != 2 || chdir(toks[1]) == -1) { // error if cd is invoked with more than 1 arg or if sys call fails
         handleError();
     }
 }
 
 void handlePath(char **toks) {
-    searchPath.clear();
+    searchPath.clear(); // clear old search path
     int argc = getLength(toks);
     int i;
     for(i = 1; i < argc; i++) {
-       searchPath.push_back(toks[i]);
+       searchPath.push_back(toks[i]); // add all args to new search path
     }
 }
 
-int checkRedir(char **toks) {
+int checkRedir(char **toks) { // returns output file index in toks if valid, -1 if invalid, and 0 if no ">" symbol in toks
     int i;
     int rval = -1;
     int argc = getLength(toks);
@@ -150,23 +150,22 @@ void handleJob(char **toks) {
     int argc = getLength(toks);
     int i;
     std::string executable;
-    int redir = checkRedir(toks); // returns output file index in toks if valid, -1 if invalid, and 0 if no ">" symbol in toks
-
+    int redir = checkRedir(toks); // check if for redirection in command
     if (redir == -1) { // redirection error
         handleError();
         return;
     }
 
     for (i = 0; i < searchPath.size(); i++) {
-        executable = searchPath[i] + "/" + toks[0];
-        if (access(executable.c_str(), X_OK) == 0) {
+        executable = searchPath[i] + "/" + toks[0]; // build full executable from search path and command
+        if (access(executable.c_str(), X_OK) == 0) { // if executable found
             pid_t pid = fork(); // create child process for valid executable
             if (pid < 0) { // fork() error handling
                 handleError();
                 return;
             }
             else if (pid == 0) {
-                // check for valid redirection
+                // if valid redirection
                 if (redir > 0) {
                     int fd = open(toks[redir], O_WRONLY | O_CREAT | O_TRUNC, 0644);
                     if (fd < 0) {  // open() error handling
@@ -174,15 +173,15 @@ void handleJob(char **toks) {
                     }
                     dup2(fd, STDOUT_FILENO);
                     dup2(fd, STDERR_FILENO); 
-                    close(fd);              
+                    close(fd); // redirect output/error to new file
 
-                    toks[redir - 1] = NULL;
+                    toks[redir - 1] = NULL; // truncate ">" and output file from arguments
                 }
 
                 // child: execute executable
                 execv(executable.c_str(), toks);
 
-                exit(1);
+                exit(1); // error if exec() returns
             }
             else {
                 wait(NULL); // parent: wait for child
@@ -195,11 +194,9 @@ void handleJob(char **toks) {
 }
 
 void processCmd(char **toks) {
-    int ii = 0;
-
     if(toks[0] != NULL){
-        
-        if(!strcmp(toks[0], STR_EXIT)) {
+        // handle built-in commands
+        if(!strcmp(toks[0], STR_EXIT)) { // "exit"
             handleExit(toks);
         }
         else if(!strcmp(toks[0], "cd")) {
@@ -208,7 +205,7 @@ void processCmd(char **toks) {
         else if(!strcmp(toks[0], "path")) {
             handlePath(toks);
         }
-        else {
+        else { // handle non-built-in command
             handleJob(toks);
         }
     }
@@ -219,7 +216,7 @@ void invokeIntMode() {
     /* local variables */
     char linestr[256];
 
-    printf(PROMPT);
+    printf(PROMPT); // print shell prompt for CLI
     /* main loop */
     while(fgets(linestr, 256, stdin)){ // Get entire argument line
         // make sure line has a '\n' at the end of it
@@ -251,7 +248,7 @@ void invokeBatMode(std::string fileName) {
             strcpy(charLine, line.c_str());
 
             char **toks = getToksArguments(charLine); // format command line into suitable toks array
-            processCmd(toks);
+            processCmd(toks); // process the command
         }
         // Close the file
         myReadFile.close(); 
@@ -270,7 +267,7 @@ void invokeBatMode(std::string fileName) {
 //*********************************************************
 int main(int argc, char *argv[])
 {
-    if (argc == 1) {
+    if (argc == 1) { // no args for interactive mode, 1 file arg for batch mode, all else are errors
         invokeIntMode();
     }
     else if (argc == 2) {
