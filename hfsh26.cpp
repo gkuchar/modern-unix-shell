@@ -211,7 +211,85 @@ void processCmd(char **toks) {
     }
 }
 
+std::vector<char**> parseLine(char **toks) {
+    std::vector<char**> commands;
+    std::vector<char*> currentCmd;
+    
+    int i = 0;
+    while (toks[i] != NULL) {
+        if (!strcmp(toks[i], "&")) {
+            // found separator, save current command
+            if (!currentCmd.empty()) {  // only add if not empty
+                currentCmd.push_back(NULL);  // NULL-terminate
+                
+                // Allocate array and copy pointers
+                char** cmd = new char*[currentCmd.size()];
+                for (int j = 0; j < currentCmd.size(); j++) {
+                    cmd[j] = currentCmd[j];
+                }
+                
+                commands.push_back(cmd);
+                currentCmd.clear();
+            }
+        } else {
+            // Add token to current command
+            currentCmd.push_back(toks[i]);
+        }
+        i++;
+    }
+    
+    // last command is NULL terminated (no trailing &)
+    if (!currentCmd.empty()) {
+        currentCmd.push_back(NULL);  // NULL-terminate
+        
+        char** cmd = new char*[currentCmd.size()];
+        for (int j = 0; j < currentCmd.size(); j++) {
+            cmd[j] = currentCmd[j];
+        }
+        
+        commands.push_back(cmd);
+    }
+    
+    return commands;
+}
+
+void cleanCommandsMem(std::vector<char**> arr) {
+    // Clean up memory
+    for (int i = 0; i < arr.size(); i++) {
+        delete[] arr[i];
+    }
+}
+
+void processParallel(std::vector<char**> commands) {
+    std::vector<pid_t> pids; // store all child pid
+    int i;
+
+    for (i = 0; i < commands.size(); i++) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            handleError();
+            continue;
+        }
+        else if (pid == 0) {
+            processCmd(commands[i]);
+            exit(0);
+        }
+        else {
+            pids.push_back(pid);
+        }
+    }
+
+    for (i = 0; i < pids.size(); i++) {
+        if (waitpid(pids[i], NULL, 0) < 0) {
+            handleError();
+        } 
+    }
+}
+
 void invokeIntMode() {
+    std::vector<char**> commands; // Stores number of parallel commands
+    int i, count;
 
     /* local variables */
     char linestr[256];
@@ -225,7 +303,15 @@ void invokeIntMode() {
 
         char **toks = getToksArguments(linestr); // format line into suitable toks array
 
-        processCmd(toks); // Process command in form of "toks" array
+        commands = parseLine(toks); // parse command line for parallel or singular command
+        count = commands.size();
+        if (count == 1) {
+            processCmd(commands[0]);
+        }
+        else {
+            processParallel(commands);
+        }
+        cleanCommandsMem(commands);
 
         printf(PROMPT);
     }
@@ -233,6 +319,8 @@ void invokeIntMode() {
 
 void invokeBatMode(std::string fileName) {
     std::string line; // Stores the current command line
+    std::vector<char**> commands; // Stores number of parallel commands
+    int i, count;
 
     // Open the file for reading
     std::ifstream myReadFile(fileName);
@@ -248,10 +336,19 @@ void invokeBatMode(std::string fileName) {
             strcpy(charLine, line.c_str());
 
             char **toks = getToksArguments(charLine); // format command line into suitable toks array
-            processCmd(toks); // process the command
+            commands = parseLine(toks); // parse command line for parallel or singular command
+            count = commands.size();
+            if (count == 1) {
+                processCmd(commands[0]);
+            }
+            else {
+                processParallel(commands);
+            }
+            cleanCommandsMem(commands);
         }
         // Close the file
         myReadFile.close(); 
+
     }
     else {
         // Bad batch file
